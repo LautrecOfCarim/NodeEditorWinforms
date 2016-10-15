@@ -253,9 +253,11 @@ namespace NodeEditor
                     graph.Nodes.ForEach(x => x.IsSelected = false);
                 }
 
+                // TODO Reorder the selection to alow sockets to be selected before nodes
+
                 var node =
                     graph.Nodes.OrderBy(x => x.Order).FirstOrDefault(
-                        x => new RectangleF(new PointF(x.X, x.Y), x.GetHeaderSize()).Contains(e.Location));
+                        x => x.Contains(e.Location));
 
                 if (node != null && !mdown)
                 {
@@ -272,6 +274,7 @@ namespace NodeEditor
 
                     Refresh();
                 }
+
                 if (node == null && !mdown)
                 {
                     var nodeWhole =

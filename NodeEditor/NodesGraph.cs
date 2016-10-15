@@ -35,14 +35,16 @@ namespace NodeEditor
             g.InterpolationMode = InterpolationMode.Low;
             g.SmoothingMode = SmoothingMode.HighSpeed;
 
-            foreach (var node in Nodes)
-            {
-                g.FillRectangle(Brushes.Black, new RectangleF(new PointF(node.X+6, node.Y+6), node.GetNodeBounds()));
-            }
+            //// Shadow
+            //foreach (var node in Nodes)
+            //{
+            //    g.FillRectangle(Brushes.Black, new RectangleF(new PointF(node.X+6, node.Y+6), node.GetNodeBounds()));
+            //}
 
-            g.FillRectangle(new SolidBrush(Color.FromArgb(200, Color.White)), g.ClipBounds);
+            // Background mask
+            g.FillRectangle(new SolidBrush(Color.FromArgb(180, Color.Black)), g.ClipBounds);
 
-            var cpen = Pens.Black;
+            var cpen = Pens.WhiteSmoke;
             var epen = new Pen(Color.Gold, 3);
             var epen2 = new Pen(Color.Black, 5);
             foreach (var connection in Connections.Where(x=>x.IsExecution))

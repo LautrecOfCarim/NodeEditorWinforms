@@ -48,7 +48,7 @@ namespace NodeEditor
         {            
             var socketRect = new RectangleF(X, Y, Width, Height);
             var hover = socketRect.Contains(mouseLocation);
-            var fontBrush = Brushes.Black;
+            var fontBrush = Brushes.WhiteSmoke;
 
             if (hover)
             {
@@ -64,14 +64,14 @@ namespace NodeEditor
                 var sf = new StringFormat();
                 sf.Alignment = StringAlignment.Near;
                 sf.LineAlignment = StringAlignment.Center;                
-                g.DrawString(Name,SystemFonts.SmallCaptionFont, fontBrush, new RectangleF(X+Width+2,Y,1000,Height), sf);
+                g.DrawString(Name,SystemFonts.CaptionFont, fontBrush, new RectangleF(X+Width+2,Y,1000,Height), sf);
             }
             else
             {
                 var sf = new StringFormat();
                 sf.Alignment = StringAlignment.Far;
                 sf.LineAlignment = StringAlignment.Center;
-                g.DrawString(Name, SystemFonts.SmallCaptionFont, fontBrush, new RectangleF(X-1000, Y, 1000, Height), sf);
+                g.DrawString(Name, SystemFonts.CaptionFont, fontBrush, new RectangleF(X-1000, Y, 1000, Height), sf);
             }
 
             g.InterpolationMode = InterpolationMode.HighQualityBilinear;

@@ -19,6 +19,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Dynamic;
 using System.Linq;
 using System.Reflection;
@@ -52,6 +53,7 @@ namespace NodeEditor
         /// Current node position Y coordinate.
         /// </summary>
         public float Y { get; set; }
+
         internal MethodInfo Type { get; set; }
         internal int Order { get; set; }
         internal bool Callable { get; set; }
@@ -64,6 +66,8 @@ namespace NodeEditor
         internal Color NodeColor = Color.LightCyan;
         public bool IsBackExecuted { get; internal set; }
         private SocketVisual[] socketCache;
+
+        private NodeFrame nodeFrame = null;
 
         /// <summary>
         /// Tag for various puposes - may be used freely.
@@ -248,9 +252,26 @@ namespace NodeEditor
         /// Returns current size of node caption (header belt).
         /// </summary>
         /// <returns></returns>
-        public SizeF GetHeaderSize()
+        protected SizeF GetHeaderSize()
         {
             return new SizeF(GetNodeBounds().Width, HeaderHeight);
+        }
+
+        public bool Contains(Point location)
+        {
+            BuildNodeFrame();
+
+            return nodeFrame.Contains(location.X - X, location.Y - Y);
+        }
+
+        private void BuildNodeFrame()
+        {
+            if (nodeFrame != null)
+                return;
+
+            var rect = new RectangleF(new PointF(0, 0), GetNodeBounds());
+            var caption = new RectangleF(new PointF(0, 0), GetHeaderSize());
+            nodeFrame = new NodeFrame(caption, rect);
         }
 
         /// <summary>
@@ -261,38 +282,25 @@ namespace NodeEditor
         /// <param name="mouseButtons">Mouse buttons that are pressed while drawing node.</param>
         public void Draw(Graphics g, Point mouseLocation, MouseButtons mouseButtons)
         {
-            var rect = new RectangleF(new PointF(X,Y), GetNodeBounds());
+            BuildNodeFrame();
 
-            var feedrect = rect;
-            feedrect.Inflate(10, 10);
+            bool mouseHoverCaption = nodeFrame.Contains(mouseLocation.X - X, mouseLocation.Y - Y);
 
-            if (Feedback == FeedbackType.Warning)
-            {
-                g.DrawRectangle(new Pen(Color.Yellow, 4), Rectangle.Round(feedrect));
-            }
-            else if (Feedback == FeedbackType.Error)
-            {
-                g.DrawRectangle(new Pen(Color.Red, 5), Rectangle.Round(feedrect));
-            }
+            var mode = SelectionMode.None;
+            if (Feedback == FeedbackType.Error) mode |= SelectionMode.Error;
+            if (Feedback == FeedbackType.Warning) mode |= SelectionMode.Warning;
+            if (mouseHoverCaption) mode |= SelectionMode.Hover;
+            if (IsSelected) mode |= SelectionMode.Selected;
 
-            var caption = new RectangleF(new PointF(X,Y), GetHeaderSize());
-            bool mouseHoverCaption = caption.Contains(mouseLocation);
+            g.TranslateTransform(X, Y);
 
-            g.FillRectangle(new SolidBrush(NodeColor), rect);
+            nodeFrame.Draw(g, mode);
 
-            if (IsSelected)
-            {
-                g.FillRectangle(new SolidBrush(Color.FromArgb(180,Color.WhiteSmoke)), rect);
-                g.FillRectangle(mouseHoverCaption ? Brushes.Gold : Brushes.Goldenrod, caption);
-            }
-            else
-            {                
-                g.FillRectangle(mouseHoverCaption ? Brushes.Cyan : Brushes.Aquamarine, caption);
-            }
-            g.DrawRectangle(Pens.Gray, Rectangle.Round(caption));
-            g.DrawRectangle(Pens.Black, Rectangle.Round(rect));
+            g.TranslateTransform(-X, -Y);
 
-            g.DrawString(Name, SystemFonts.DefaultFont, Brushes.Black, new PointF(X + 3, Y + 3));       
+
+
+            g.DrawString(Name, SystemFonts.CaptionFont, Brushes.WhiteSmoke, new PointF(X + 3, Y + 3));       
 
             var sockets = GetSockets();
             foreach (var socet in sockets)
