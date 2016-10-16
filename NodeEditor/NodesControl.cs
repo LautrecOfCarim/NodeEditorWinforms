@@ -45,7 +45,11 @@ namespace NodeEditor
         private NodesGraph graph = new NodesGraph();
         private bool needRepaint = true;
         private Timer timer = new Timer();
-        private bool mdown;
+
+        private bool draggingNodes;
+        private bool draggingSocket;
+        private bool didDragNodes;
+
         private Point lastmpos;
         private SocketVisual dragSocket;
         private NodeVisual dragSocketNode;
@@ -194,27 +198,38 @@ namespace NodeEditor
             {
                 selectionEnd = e.Location;
             }
-            if (mdown)
-            {                                            
+
+            if (draggingNodes)
+            {
+                Point dragDistance = em;
+                dragDistance.X -= lastmpos.X;
+                dragDistance.Y -= lastmpos.Y;
+
+                if (Math.Abs(dragDistance.X) > 1 || Math.Abs(dragDistance.Y) > 0)
+                    didDragNodes = true;
+
                 foreach (var node in graph.Nodes.Where(x => x.IsSelected))
                 {
-                    node.X += em.X - lastmpos.X;
-                    node.Y += em.Y - lastmpos.Y;
+                    node.X += dragDistance.X;
+                    node.Y += dragDistance.Y;
                     node.DiscardCache();
                     node.LayoutEditor();
                 }
                 if (graph.Nodes.Exists(x => x.IsSelected))
                 {
                     var n = graph.Nodes.FirstOrDefault(x => x.IsSelected);
-                    var bound = new RectangleF(new PointF(n.X,n.Y), n.GetNodeBounds());
-                    foreach (var node in graph.Nodes.Where(x=>x.IsSelected))
+                    var bound = new RectangleF(new PointF(n.X, n.Y), n.GetNodeBounds());
+                    foreach (var node in graph.Nodes.Where(x => x.IsSelected))
                     {
                         bound = RectangleF.Union(bound, new RectangleF(new PointF(node.X, node.Y), node.GetNodeBounds()));
                     }
                     OnShowLocation(bound);
                 }
                 Invalidate();
-                
+            }
+
+            if (draggingSocket)
+            {                                                            
                 if (dragSocket != null)
                 {
                     var center = new PointF(dragSocket.X + dragSocket.Width/2f, dragSocket.Y + dragSocket.Height/2f);
@@ -234,108 +249,114 @@ namespace NodeEditor
                     }
                     
                 }
-                lastmpos = em;
-            }            
+            }
 
+            lastmpos = em;
             needRepaint = true;
         }
 
         private void NodesControl_MouseDown(object sender, MouseEventArgs e)
-        {                        
-            if (e.Button == MouseButtons.Left)
+        {
+            // We only handle left mouse button click, drag and selection so ignore all else input
+            if (e.Button != MouseButtons.Left)
+                return;
+
+            selectionStart = PointF.Empty;
+
+            Focus();
+
+            // 0. Determine if the click is on a node of any kind
+            var nodeOnMouseDown =
+                graph.Nodes.OrderBy(x => x.Order).FirstOrDefault(x => x.Contains(e.Location));
+
+            // 1. Try to click on a socket
+            if (nodeOnMouseDown == null)
             {
-                selectionStart  = PointF.Empty;                
+                selectionStart = selectionEnd = e.Location;
+            }
+            else
+            {
+                var socket = nodeOnMouseDown.GetSockets().FirstOrDefault(x => x.GetBounds().Contains(e.Location));
 
-                Focus();
-
-                if ((ModifierKeys & Keys.Shift) != Keys.Shift)
+                if (socket != null)
                 {
-                    graph.Nodes.ForEach(x => x.IsSelected = false);
-                }
-
-                // TODO Reorder the selection to alow sockets to be selected before nodes
-
-                var node =
-                    graph.Nodes.OrderBy(x => x.Order).FirstOrDefault(
-                        x => x.Contains(e.Location));
-
-                if (node != null && !mdown)
-                {
-                    
-                    node.IsSelected = true;
-                    
-                    node.Order = graph.Nodes.Min(x => x.Order) - 1;
-                    if (node.CustomEditor != null)
+                    if ((ModifierKeys & Keys.Control) == Keys.Control)
                     {
-                        node.CustomEditor.BringToFront();
-                    }
-                    mdown = true;
-                    lastmpos = PointToScreen(e.Location);
+                        var connection =
+                            graph.Connections.FirstOrDefault(
+                                x => x.InputNode == nodeOnMouseDown && x.InputSocketName == socket.Name);
 
-                    Refresh();
-                }
-
-                if (node == null && !mdown)
-                {
-                    var nodeWhole =
-                    graph.Nodes.OrderBy(x => x.Order).FirstOrDefault(
-                        x => new RectangleF(new PointF(x.X, x.Y), x.GetNodeBounds()).Contains(e.Location));
-                    if (nodeWhole != null)
-                    {
-                        node = nodeWhole;
-                        var socket = nodeWhole.GetSockets().FirstOrDefault(x => x.GetBounds().Contains(e.Location));
-                        if (socket != null)
+                        if (connection != null)
                         {
-                            if ((ModifierKeys & Keys.Control) == Keys.Control)
-                            {
-                                var connection =
-                                    graph.Connections.FirstOrDefault(
-                                        x => x.InputNode == nodeWhole && x.InputSocketName == socket.Name);
-
-                                if (connection != null)
-                                {
-                                    dragSocket =
-                                        connection.OutputNode.GetSockets()
-                                            .FirstOrDefault(x => x.Name == connection.OutputSocketName);
-                                    dragSocketNode = connection.OutputNode;
-                                }
-                                else
-                                {
-                                    connection =
-                                        graph.Connections.FirstOrDefault(
-                                            x => x.OutputNode == nodeWhole && x.OutputSocketName == socket.Name);
-
-                                    if (connection != null)
-                                    {
-                                        dragSocket =
-                                            connection.InputNode.GetSockets()
-                                                .FirstOrDefault(x => x.Name == connection.InputSocketName);
-                                        dragSocketNode = connection.InputNode;
-                                    }
-                                }
-
-                                graph.Connections.Remove(connection);
-                                rebuildConnectionDictionary = true;
-                            }
-                            else
-                            {
-                                dragSocket = socket;
-                                dragSocketNode = nodeWhole;
-                            }
-                            dragConnectionBegin = e.Location;
-                            dragConnectionEnd = e.Location;
-                            mdown = true;
-                            lastmpos = PointToScreen(e.Location);
+                            dragSocket =
+                                connection.OutputNode.GetSockets()
+                                    .FirstOrDefault(x => x.Name == connection.OutputSocketName);
+                            dragSocketNode = connection.OutputNode;
                         }
+                        else
+                        {
+                            connection =
+                                graph.Connections.FirstOrDefault(
+                                    x => x.OutputNode == nodeOnMouseDown && x.OutputSocketName == socket.Name);
+
+                            if (connection != null)
+                            {
+                                dragSocket =
+                                    connection.InputNode.GetSockets()
+                                        .FirstOrDefault(x => x.Name == connection.InputSocketName);
+                                dragSocketNode = connection.InputNode;
+                            }
+                        }
+
+                        graph.Connections.Remove(connection);
+                        rebuildConnectionDictionary = true;
                     }
                     else
                     {
-                        selectionStart = selectionEnd = e.Location;
+                        dragSocket = socket;
+                        dragSocketNode = nodeOnMouseDown;
                     }
+
+                    dragConnectionBegin = e.Location;
+                    dragConnectionEnd = e.Location;
+                    draggingSocket = true;
+                    lastmpos = PointToScreen(e.Location);
+
+                    // Dragging sockets shouldn't change our current selection
+                    needRepaint = true;
+                    return;
                 }
-                if (node != null)
+            }
+
+            // 2. Try to click on a node
+            if (nodeOnMouseDown != null)
+            {
+                if ((ModifierKeys & Keys.Control) == Keys.Control)
                 {
-                    OnNodeContextSelected(node.GetNodeContext());
+                    nodeOnMouseDown.IsSelected = false;
+                }
+                else
+                {
+                    if (!nodeOnMouseDown.IsSelected && (ModifierKeys & Keys.Shift) != Keys.Shift)
+                    {
+                        graph.Nodes.ForEach(x => x.IsSelected = false);
+                    }
+
+                    nodeOnMouseDown.IsSelected = true;
+
+                    nodeOnMouseDown.Order = graph.Nodes.Min(x => x.Order) - 1;
+                    if (nodeOnMouseDown.CustomEditor != null)
+                    {
+                        nodeOnMouseDown.CustomEditor.BringToFront();
+                    }
+
+                    draggingNodes = true;
+                    didDragNodes = false;
+                    lastmpos = PointToScreen(e.Location);
+
+                    OnNodeContextSelected(nodeOnMouseDown.GetNodeContext());
+
+                    Refresh();
                 }
             }
 
@@ -381,6 +402,21 @@ namespace NodeEditor
                 selectionStart = PointF.Empty;
             }
 
+            if (!didDragNodes)
+            {
+                if ((ModifierKeys & Keys.Shift) != Keys.Shift)
+                {
+                    graph.Nodes.ForEach(x => x.IsSelected = false);
+                }
+
+                if ((ModifierKeys & Keys.Control) != Keys.Control)
+                {
+                    var nodeOnMouseDown =
+                        graph.Nodes.OrderBy(x => x.Order).FirstOrDefault(x => x.Contains(e.Location));
+                    if (nodeOnMouseDown != null) nodeOnMouseDown.IsSelected = true;
+                }
+            }
+
             if (dragSocket != null)
             {
                 var nodeWhole =
@@ -420,7 +456,9 @@ namespace NodeEditor
             }
            
             dragSocket = null;
-            mdown = false;
+            draggingSocket = false;
+            draggingNodes = false;
+            didDragNodes = false;
             needRepaint = true;
         }
 

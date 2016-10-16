@@ -53,7 +53,7 @@ namespace NodeEditor
         /// <param name="bodyRect"><see cref="RectangleF"/> describing the body section size. May or may not include the title area.</param>
         public NodeFrame(RectangleF titleRect, RectangleF bodyRect)
         {
-            hoverRect = titleRect;
+            hoverRect = bodyRect;
 
             TitleFrame = CreateRoundedRect(Rectangle.Round(titleRect), 10, RoundedSide.Top);
             BodyFrame  = CreateRoundedRect(Rectangle.Round(bodyRect),  10, RoundedSide.Top | RoundedSide.Bottom);
