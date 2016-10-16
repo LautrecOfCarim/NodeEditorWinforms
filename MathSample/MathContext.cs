@@ -14,6 +14,16 @@ namespace MathSample
         public NodeVisual CurrentProcessingNode { get; set; }
         public event Action<string, NodeVisual, FeedbackType, object, bool> FeedbackInfo;
 
+        [Node("AddMany", "Operators", "Basic", "Adds many input values.", false)]
+        public void AddMany(float[] input, out float result)
+        {
+            result = 0;
+            foreach (var item in input)
+            {
+                result += item;
+            }
+        }
+
         [Node("Value", "Input", "Basic", "Allows to output a simple value.",false)]
         public void InputValue(float inValue, out float outValue)
         {

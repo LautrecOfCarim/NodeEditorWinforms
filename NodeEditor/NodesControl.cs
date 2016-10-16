@@ -27,6 +27,7 @@ using System.Reflection;
 using System.Text;
 using System.Windows.Forms;
 using System.Xml;
+using System.Collections;
 
 namespace NodeEditor
 {
@@ -363,14 +364,15 @@ namespace NodeEditor
             needRepaint = true;
         }
 
-        private bool IsConnectable(SocketVisual a, SocketVisual b)
+        private bool IsConnectable(SocketVisual a, SocketVisual b, out bool hasManyInputs)
         {
             var input = a.Input ? a : b;
             var output = a.Input ? b : a;
             var otype = Type.GetType(output.Type.FullName.Replace("&", ""), AssemblyResolver, TypeResolver);
             var itype = Type.GetType(input.Type.FullName.Replace("&", ""), AssemblyResolver, TypeResolver);
+            hasManyInputs = itype.IsArray;
             if (otype == null || itype == null) return false;
-            var allow = otype == itype || otype.IsSubclassOf(itype);
+            var allow = otype == itype || otype.IsSubclassOf(itype) || (itype.IsArray && otype.IsAssignableFrom(itype.GetElementType()));
             return allow;
         }
 
@@ -427,7 +429,8 @@ namespace NodeEditor
                     var socket = nodeWhole.GetSockets().FirstOrDefault(x => x.GetBounds().Contains(e.Location));
                     if (socket != null)
                     {
-                        if (IsConnectable(dragSocket,socket) && dragSocket.Input != socket.Input)
+                        bool hasManyInputs;
+                        if (IsConnectable(dragSocket, socket, out hasManyInputs) && dragSocket.Input != socket.Input)
                         {                                                        
                             var nc = new NodeConnection();
                             if (!dragSocket.Input)
@@ -445,8 +448,9 @@ namespace NodeEditor
                                 nc.OutputSocketName = socket.Name;
                             }
 
-                            graph.Connections.RemoveAll(
-                                x => x.InputNode == nc.InputNode && x.InputSocketName == nc.InputSocketName);
+                            if (!hasManyInputs)
+                                graph.Connections.RemoveAll(
+                                    x => x.InputNode == nc.InputNode && x.InputSocketName == nc.InputSocketName);
 
                             graph.Connections.Add(nc);
                             rebuildConnectionDictionary = true;
@@ -779,38 +783,72 @@ namespace NodeEditor
             var icontext = (node.GetNodeContext() as DynamicNodeContext);
             foreach (var input in node.GetInputs())
             {
-                var connection = GetConnection(node.GUID + input.Name);
-                    //graph.Connections.FirstOrDefault(x => x.InputNode == node && x.InputSocketName == input.Name);
-                if (connection != null)
+                Object inputValue = null;
+                var isArray = input.ParameterType.IsArray;
+                Type outputType = typeof(int);
+
+                var connections = GetConnections(node.GUID + input.Name);
+
+                foreach (var connection in connections)
                 {
+                    if (connection.IsExecution)
+                        continue;
+
                     Resolve(connection.OutputNode);
                     if (!connection.OutputNode.Callable)
                     {                        
                         connection.OutputNode.Execute(Context);
                     }
                     var ocontext = (connection.OutputNode.GetNodeContext() as DynamicNodeContext);
-                    icontext[connection.InputSocketName] = ocontext[connection.OutputSocketName];                    
+
+                    if (isArray)
+                    {
+                        if (inputValue == null)
+                        {
+                            inputValue = new List<Object>();
+                        }
+
+                        ((List<Object>)inputValue).Add(ocontext[connection.OutputSocketName]);
+                        outputType = ocontext[connection.OutputSocketName].GetType();
+                    }
+                    else
+                    {
+                        inputValue = ocontext[connection.OutputSocketName];
+                    }
+                }
+
+                // If we have our input value, assign it to the node
+                if (inputValue != null)
+                {
+                    if (isArray)
+                    {
+                        var objArr = ((List<Object>)inputValue).ToArray();
+                        var array = Array.CreateInstance(outputType, objArr.Length);
+                        Array.Copy(objArr, array, objArr.Length);
+
+                        icontext[input.Name] = array;
+                    }
+                    else
+                    {
+                        icontext[input.Name] = inputValue;
+                    }
                 }
             }
         }
 
-        private NodeConnection GetConnection(string v)
+        private IEnumerable<NodeConnection> GetConnections(string v)
         {
-            if(rebuildConnectionDictionary)
+            // TODO: Use rebuildConnectionDictionary to speed things up
+            List<NodeConnection> list = new List<NodeConnection>();
+
+            foreach (var conn in graph.Connections)
             {
-                rebuildConnectionDictionary = false;
-                connectionDictionary.Clear();
-                foreach (var conn in graph.Connections)
-                {
-                    connectionDictionary.Add(conn.InputNode.GUID + conn.InputSocketName, conn);
-                }
+                string key = conn.InputNode.GUID + conn.InputSocketName;
+                if (key.Equals(v))
+                    list.Add(conn);
             }
-            NodeConnection nc = null;
-            if (connectionDictionary.TryGetValue(v, out nc))
-            {
-                return nc;
-            }
-            return null;
+
+            return list;
         }
 
         public string ExportToXml()

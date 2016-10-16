@@ -179,9 +179,15 @@ namespace NodeEditor
 
                 foreach (var input in GetInputs())
                 {
-                    var p = input.ParameterType == typeof(string) ? "" :
-                        Activator.CreateInstance(AppDomain.CurrentDomain, input.ParameterType.Assembly.GetName().Name,
-                            input.ParameterType.FullName.Replace("&", "").Replace(" ", "")).Unwrap();
+                    var appDomain = AppDomain.CurrentDomain;
+                    var assemblyName = input.ParameterType.Assembly.GetName().Name;
+                    var typeName = input.ParameterType.FullName.Replace("&", "").Replace(" ", "").Replace("[]", "");
+                    var isArray = input.ParameterType.IsArray;
+
+                    var p = isArray ? Activator.CreateInstance(input.ParameterType, 1) :
+                        input.ParameterType == typeof(string) ? "" :
+                        Activator.CreateInstance(appDomain, assemblyName, typeName).Unwrap();                    
+
                     if (!Convert.IsDBNull(input.DefaultValue))
                     {
                         var def = Convert.ChangeType(input.DefaultValue, p.GetType());
