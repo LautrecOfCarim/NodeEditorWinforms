@@ -64,6 +64,11 @@ namespace NodeEditor
             return hoverRect.Contains(x, y);
         }
 
+        public bool IntersectsWith(RectangleF rect)
+        {
+            return hoverRect.IntersectsWith(rect);
+        }
+
         public void Draw(Graphics g, SelectionMode mode)
         {
             uint brushId = (uint)(mode & (SelectionMode.Hover | SelectionMode.Selected));

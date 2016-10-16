@@ -264,6 +264,13 @@ namespace NodeEditor
             return nodeFrame.Contains(location.X - X, location.Y - Y);
         }
 
+        public bool IntersectsWith(RectangleF rect)
+        {
+            rect.X -= X;
+            rect.Y -= Y;
+            return nodeFrame.IntersectsWith(rect);
+        }
+
         private void BuildNodeFrame()
         {
             if (nodeFrame != null)

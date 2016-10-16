@@ -394,17 +394,9 @@ namespace NodeEditor
 
         private void NodesControl_MouseUp(object sender, MouseEventArgs e)
         {
-            if (selectionStart != PointF.Empty)
-            {
-                var rect = MakeRect(selectionStart, selectionEnd);
-                graph.Nodes.ForEach(
-                    x => x.IsSelected = rect.Contains(new RectangleF(new PointF(x.X, x.Y), x.GetNodeBounds())));
-                selectionStart = PointF.Empty;
-            }
-
             if (!didDragNodes)
             {
-                if ((ModifierKeys & Keys.Shift) != Keys.Shift)
+                if ((ModifierKeys & Keys.Shift) != Keys.Shift && (ModifierKeys & Keys.Control) != Keys.Control)
                 {
                     graph.Nodes.ForEach(x => x.IsSelected = false);
                 }
@@ -415,6 +407,14 @@ namespace NodeEditor
                         graph.Nodes.OrderBy(x => x.Order).FirstOrDefault(x => x.Contains(e.Location));
                     if (nodeOnMouseDown != null) nodeOnMouseDown.IsSelected = true;
                 }
+            }
+
+            if (selectionStart != PointF.Empty)
+            {
+                var rect = MakeRect(selectionStart, selectionEnd);
+                graph.Nodes.ForEach(
+                    x => x.IsSelected = x.IntersectsWith(rect));
+                selectionStart = PointF.Empty;
             }
 
             if (dragSocket != null)
